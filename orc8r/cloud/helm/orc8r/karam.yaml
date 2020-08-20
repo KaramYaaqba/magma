@@ -1,0 +1,159 @@
+imagePullSecrets: Nd3LYEjNiKfMlVWbYrDEQ/dY8901hzuO
+
+secrets:
+  create: true
+secret:
+  certs: orc8r-secrets-certs
+  configs:
+    orc8r: orc8r-secrets-configs-orc8r
+  envdir: orc8r-secrets-envdir
+
+proxy:
+  podDisruptionBudget:
+    enabled: true
+  image:
+    repository: karamcom.azurecr.io/orc8r_proxy
+    tag: "latest"
+    pullPolicy: Always
+  replicas: 2
+  service:
+    enabled: true
+    legacyEnabled: true
+    extraAnnotations:
+      bootstrapLagacy:
+        external-dns.alpha.kubernetes.io/hostname: bootstrapper-controller.karamcom
+      clientcertLegacy:
+        external-dns.alpha.kubernetes.io/hostname: controller.karamcom,api.karamcom
+    name: orc8r-bootstrap-legacy
+    type: LoadBalancer
+  spec:
+    hostname: controller.karamcom
+    http_proxy_docker_hostname: "orc8r-proxy"
+
+controller:
+  podDisruptionBudget:
+    enabled: true
+  image:
+    repository: karamcom.azurecr.io/orc8r_controller
+    tag: "latest"
+    pullPolicy: Always
+  replicas: 2
+  spec:
+    database:
+      db: orc8r
+      host: orc8r-postgresqldb-03.postgres.database.azure.com
+      port: 5432
+      user: magma_dev@orc8r-postgresqldb-03
+      pass: deploy_magma_SFT_654321!!
+
+metrics:
+  imagePullSecrets: Nd3LYEjNiKfMlVWbYrDEQ/dY8901hzuO
+  metrics:
+    volumes:
+      prometheusData:
+        volumeSpec:
+          persistentVolumeClaim:
+            claimName: prometheus-data-azurefile
+      prometheusConfig:
+        volumeSpec:
+          persistentVolumeClaim:
+            claimName: prometheus-cfg-azurefile
+
+  prometheus:
+    create: true
+    includeOrc8rAlerts: true
+    prometheusCacheHostname: orc8r-prometheus-cache.magma-stage.svc.cluster.local
+    alertmanagerHostname: orc8r-alertmanager.magma-stage.svc.cluster.local
+
+  alertmanager:
+    create: true
+
+  prometheusConfigurer:
+    create: true
+    image:
+      repository: karamcom.azurecr.io/orc8r_prometheus-configurer
+      tag: "latest"
+    prometheusURL: orc8r-prometheus.magma-stage.svc.cluster.local:9090
+
+  alertmanagerConfigurer:
+    create: true
+    image:
+      repository: karamcom.azurecr.io/orc8r_alertmanager-configurer
+      tag: "latest"
+    alertmanagerURL: orc8r-alertmanager.magma-stage.svc.cluster.local:9093
+
+  prometheusCache:
+    create: true
+    image:
+      repository: karamcom.azurecr.io/orc8r_prometheus-cache
+      tag: "latest"
+    limit: 500000
+  grafana:
+    create: false
+
+  userGrafana:
+    image:
+      repository: docker.io/grafana/grafana
+      tag: 6.6.2
+    create: true
+    volumes:
+      datasources:
+        persistentVolumeClaim:
+          claimName: grafana-datasources-azuredisk
+      dashboardproviders:
+        persistentVolumeClaim:
+          claimName: grafana-providers-azuredisk
+      dashboards:
+        persistentVolumeClaim:
+          claimName: grafana-dashboards-azuredisk
+      grafanaData:
+        persistentVolumeClaim:
+          claimName: grafana-data-azuredisk
+
+nms:
+  enabled: true
+
+  imagePullSecrets: Nd3LYEjNiKfMlVWbYrDEQ/dY8901hzuO
+
+  secret:
+    certs: orc8r-secrets-certs
+
+  magmalte:
+    manifests:
+      secrets: true
+      deployment: true
+      service: true
+      rbac: false
+
+    image:
+      repository: karamcom.azurecr.io/magmalte_magmalte
+      tag: "latest"
+      pullPolicy: Always
+
+    env:
+      api_host: orc8r-proxy.magma-stage.svc.cluster.local:9443
+      mysql_host: orc8r-mysqldbserver-01.mysql.database.azure.com
+      mysql_user: magma_dev@orc8r-mysqldbserver-01
+      grafana_address: orc8r-user-grafana.magma-stage.svc.cluster.local:3000
+      mysql_pass: deploy_magma_SFT_654321!!
+
+  nginx:
+    manifests:
+      configmap: true
+      secrets: true
+      deployment: true
+      service: true
+      rbac: false
+
+    service:
+      type: LoadBalancer
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "*.nms.karamcom"
+
+    deployment:
+      spec:
+        ssl_cert_name: controller.crt
+        ssl_cert_key_name: controller.key
+
+logging:
+  enabled: false
